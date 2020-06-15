@@ -63,6 +63,7 @@ class PostfixAnalyzer:
         self._lineDefs.append(PostfixLine('start smtpd', 'postfix/smtpd.*connect from', self.onStart))
         self._lineDefs.append(PostfixLine('start noqueue', 'postfix/smtpd.*NOQUEUE', self.onNoQueue))
         self._lineDefs.append(PostfixLine('start queue', 'postfix/smtpd.*client=', self.onQueue))
+        self._lineDefs.append(PostfixLine('start pickup', 'postfix/pickup.*from=', self.onPickup))
         self._lineDefs.append(PostfixLine('removed', 'postfix/qmgr.*removed', self.onRemoved))
         self._lineDefs.append(PostfixLine('cleanup', 'postfix/cleanup', self.onCleanup))
         self._lineDefs.append(PostfixLine('queued', 'postfix/qmgr.*from=', self.onQueued))
@@ -129,6 +130,17 @@ class PostfixAnalyzer:
         else:
             print('Warn: Process %s not found in onQueue' % pid)
 
+    def onPickup(self, line):
+        ss = line.split()
+        pid = self.getInside(ss[4], '[', ']')
+        date = "%s %s %s" % (ss[0], ss[1], ss[2])
+        transaction = PostfixTransaction(date, '', '')
+        transaction._postfixID = ss[5].rstrip(':')
+        transaction._from = self.getInside(ss[7], '<', '>')
+        transaction._status = 'self'
+        self._postfixIDMap[transaction._postfixID] = transaction
+        # self.report(transaction)
+
     def onCleanup(self, line):
         ss = line.split(None, 7)
         if ss[5] == 'table':
@@ -159,8 +171,14 @@ class PostfixAnalyzer:
             info = ss[6].split(',')
             transaction._from = self.getInside(info[0], '<', '>')
             transaction._size = info[1][6:]
-        #else:
-        #    () 'Error: Transaction %s not found in onQueued' % postfixID)
+        else:
+            date = "%s %s %s" % (ss[0], ss[1], ss[2])
+            transaction = PostfixTransaction(date, '', '')
+            transaction._postfixID = postfixID
+            info = ss[6].split(',')
+            transaction._from = self.getInside(info[0], '<', '>')
+            transaction._size = info[1][6:]
+            self._postfixIDMap[transaction._postfixID] = transaction
 
     def onPipe(self, line):
         ss = line.split(None, 6)
